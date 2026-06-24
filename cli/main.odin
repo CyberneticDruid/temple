@@ -88,20 +88,18 @@ collect_compile_calls :: proc(
 	context.allocator = context.temp_allocator
 
 	fmt.printf("looking for compile calls in %q\n", root)
-
-	// TODO: does not support symbolic links, communicate it to users.
-
+    
 	filepath.walk(
 		root,
 		proc(
 			info: os.File_Info,
-			in_err: os.Errno,
+			in_err: os.Error,
 			user_data: rawptr,
 		) -> (
-			err: os.Errno,
+			err: os.Error,
 			skip_dir: bool,
 		) {
-			if !info.is_dir {
+            if info.type != os.File_Type.Directory {
 				return
 			}
 
@@ -201,13 +199,13 @@ collect_compile_calls :: proc(
 
 transpile_calls :: proc(temple_path: string, calls: []Compile_Call, package_name: string) {
 	compiled_path := filepath.join({temple_path, "templates.odin"})
-	handle, errno := os.open(compiled_path, os.O_TRUNC | os.O_RDWR | os.O_CREATE, 0o600)
+	handle, errno := os.open(compiled_path, os.O_TRUNC | os.O_RDWR | os.O_CREATE, os.Permissions_Default)
 	if errno != os.ERROR_NONE {
 		error(nil, "%q: unable to open file for generation", compiled_path)
 	}
 	defer os.close(handle)
 
-	s := os.stream_from_handle(handle)
+	s := os.to_stream(handle)
 
 	bw: bufio.Writer
 	bufio.writer_init(&bw, s)
@@ -290,8 +288,8 @@ write_transpiled_call :: proc(w: io.Writer, call: Compile_Call) -> (ok: bool) {
 	case Call_Path:
 		identifier = t.relpath
 		file = t.fullpath
-		d, ok := os.read_entire_file_from_filename(t.fullpath)
-		if !ok {
+		d, ok := os.read_entire_file(t.fullpath, context.allocator)
+		if ok != os.ERROR_NONE {
 			warn(nil, "unable to read template file at %q, skipping", t.fullpath)
 			return
 		}
@@ -339,8 +337,8 @@ embed_parser :: proc(node: ^Node_Embed, parent_path_: rawptr) -> (Template, bool
 	relpath := node.path.value[1:len(node.path.value)-1]
 	fullpath := filepath.join({filepath.dir(parent_path), relpath})
 
-	data, ok := os.read_entire_file_from_filename(fullpath)
-	if !ok {
+	data, ok := os.read_entire_file(fullpath, context.allocator)
+	if ok != os.ERROR_NONE {
 		pos := tokenizer.Pos{
 			offset = node.path.pos.offset,
 			line   = node.path.pos.line + 1,
