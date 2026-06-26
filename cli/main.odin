@@ -173,8 +173,7 @@ collect_compile_calls :: proc(
 							unqouted_path := strings.trim(path.tok.text, "\"`")
 
 							cp.relpath = strings.clone(unqouted_path, s.allocator)
-							cp.fullpath = filepath.join({s.pkg.fullpath, unqouted_path}, s.allocator)
-
+							cp.fullpath, _ = filepath.join([]string{s.pkg.fullpath, unqouted_path}, s.allocator)
 						case "temple_compiled_inline":
 							cp: Call_Inline
 							cp.template = strings.clone(strings.trim(path.tok.text, "\"`"), s.allocator)
@@ -198,7 +197,7 @@ collect_compile_calls :: proc(
 }
 
 transpile_calls :: proc(temple_path: string, calls: []Compile_Call, package_name: string) {
-	compiled_path := filepath.join({temple_path, "templates.odin"})
+	compiled_path, _ := filepath.join([]string{temple_path, "templates.odin"}, context.allocator)
 	handle, errno := os.open(compiled_path, os.O_TRUNC | os.O_RDWR | os.O_CREATE, os.Permissions_Default)
 	if errno != os.ERROR_NONE {
 		error(nil, "%q: unable to open file for generation", compiled_path)
@@ -335,7 +334,7 @@ write_generated_file_footer :: proc(w: io.Writer, has_calls: bool) {
 embed_parser :: proc(node: ^Node_Embed, parent_path_: rawptr) -> (Template, bool) {
 	parent_path := (cast(^string)parent_path_)^
 	relpath := node.path.value[1:len(node.path.value)-1]
-	fullpath := filepath.join({filepath.dir(parent_path), relpath})
+	fullpath, _ := filepath.join([]string{filepath.dir(parent_path), relpath}, context.allocator)
 
 	data, ok := os.read_entire_file(fullpath, context.allocator)
 	if ok != os.ERROR_NONE {
